@@ -64,6 +64,10 @@ h1 { margin: 3px 0 0; font-size: 24px; line-height: 1.1; color: #0f172a; }
 .toolbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .validation-banner { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; padding: 10px 12px; border: 1px solid #fca5a5; border-radius: 8px; background: #fef2f2; color: #991b1b; font-size: 11px; }
 .validation-banner span { padding-left: 8px; border-left: 1px solid #fca5a5; }
+.merge-banner { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; padding: 10px 12px; border: 1px solid #5eead4; border-radius: 8px; background: #f0fdfa; color: #115e59; font-size: 11px; }
+.merge-banner span { padding-left: 8px; border-left: 1px solid #99f6e4; }
+.merge-banner span.attention { color: #b45309; font-weight: 800; }
+.merge-banner .banner-close { margin-left: auto; border: 0; background: transparent; color: #0f766e; font-size: 15px; line-height: 1; cursor: pointer; }
 
 .editor-grid { display: grid; grid-template-columns: minmax(520px, 1fr) 315px; gap: 12px; align-items: start; }
 .log-card, .summary-card { border: 1px solid #dbe3ec; border-radius: 10px; background: #fff; overflow: hidden; }
@@ -106,7 +110,7 @@ h1 { margin: 3px 0 0; font-size: 24px; line-height: 1.1; color: #0f172a; }
 .variant-soft-error { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
 
 @media print {
-  .app-header, .hole-sidebar, .toolbar-actions, .table-section, .print-hide, .compare-selector, .comparison-toolbar { display: none !important; }
+  .app-header, .hole-sidebar, .toolbar-actions, .table-section, .print-hide, .compare-selector, .comparison-toolbar, .merge-banner { display: none !important; }
   .workbench, .compare-page { display: block; padding: 0; min-height: auto; }
   .editor-grid { display: block; }
   .detail-column { display: none; }

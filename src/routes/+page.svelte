@@ -3,6 +3,8 @@
   import DepthLog from '$lib/components/DepthLog.svelte';
   import IntervalTable from '$lib/components/IntervalTable.svelte';
   import PhotoPanel from '$lib/components/PhotoPanel.svelte';
+  import ImportPanel from '$lib/components/ImportPanel.svelte';
+  import ConflictPanel from '$lib/components/ConflictPanel.svelte';
   import { logbook } from '$lib/stores/logbook.svelte';
   import { downloadJson, printLog } from '$lib/utils/exports';
 
@@ -12,6 +14,7 @@
   let panning = $state(false);
   let panStartY = $state(0);
   let panStartTop = $state(0);
+  let importOpen = $state(false);
 
   let activeHole = $derived(logbook.activeHole);
   let selectedInterval = $derived(logbook.selectedInterval);
@@ -106,10 +109,28 @@
         <button class="btn btn-sm variant-soft" onclick={() => logbook.redo()} disabled={!logbook.future.length}>重做</button>
         <button class="btn btn-sm variant-soft" onclick={() => logbook.splitSelected()}>拆分区间</button>
         <button class="btn btn-sm variant-soft" onclick={() => logbook.mergeSelectedWithNext()}>合并下一段</button>
+        <button class="btn btn-sm variant-soft" onclick={() => (importOpen = true)}>导入野外数据</button>
         <button class="btn btn-sm variant-soft" onclick={() => downloadJson(logbook.holes, logbook.activeHoleId)}>导出 JSON</button>
         <button class="btn btn-sm variant-filled-primary" onclick={printLog}>打印柱状图</button>
       </div>
     </div>
+
+    {#if logbook.lastMergeReport}
+      {@const report = logbook.lastMergeReport}
+      <div class="merge-banner">
+        <strong>已合并 {report.holeName} 的野外数据</strong>
+        <span>叠加 {report.appliedCount} 段</span>
+        <span>切开现存 {report.splitCount} 段</span>
+        <span>一致跳过 {report.identicalCount} 段</span>
+        <span class:attention={report.conflicts.length > 0}>待处理冲突 {report.conflicts.length} 条</span>
+        <span class:attention={report.invalidatedCount > 0}>地层线失效 {report.invalidatedCount} 条</span>
+        <button class="banner-close" aria-label="关闭合并结果" onclick={() => logbook.dismissMergeReport()}>×</button>
+      </div>
+    {/if}
+
+    {#if logbook.pendingConflicts.length}
+      <ConflictPanel />
+    {/if}
 
     {#if logbook.errors.length}
       <div class="validation-banner">
@@ -191,4 +212,6 @@
     </section>
   </main>
 </div>
+
+<ImportPanel open={importOpen} onClose={() => (importOpen = false)} />
 

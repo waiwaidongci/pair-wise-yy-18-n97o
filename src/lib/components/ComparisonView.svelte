@@ -115,17 +115,23 @@
         <svg class="correlation-lines" viewBox="0 0 100 760" preserveAspectRatio="none" aria-hidden="true">
           {#each hole.correlations.filter((item) => holes.some((candidate) => candidate.id === item.targetHoleId)) as correlation}
             {@const targetHole = holes.find((candidate) => candidate.id === correlation.targetHoleId)}
-            {@const sourceDepth = intervalMidpoint(hole, correlation.intervalId)}
-            {@const targetDepth = targetHole ? intervalMidpoint(targetHole, correlation.targetIntervalId) : sourceDepth}
-            <line
-              x1="0"
-              x2="100"
-              y1={32 + ((sourceDepth - topDepth) / Math.max(1, bottomDepth - topDepth)) * 694}
-              y2={32 + ((targetDepth - topDepth) / Math.max(1, bottomDepth - topDepth)) * 694}
-              stroke={correlation.color}
-              stroke-width="2"
-              vector-effect="non-scaling-stroke"
-            />
+            {@const sourceExists = hole.intervals.some((item) => item.id === correlation.intervalId)}
+            {@const targetExists = !!targetHole?.intervals.some((item) => item.id === correlation.targetIntervalId)}
+            {#if sourceExists && targetExists}
+              {@const invalid = correlation.status === 'invalid'}
+              {@const sourceDepth = intervalMidpoint(hole, correlation.intervalId)}
+              {@const targetDepth = targetHole ? intervalMidpoint(targetHole, correlation.targetIntervalId) : sourceDepth}
+              <line
+                x1="0"
+                x2="100"
+                y1={32 + ((sourceDepth - topDepth) / Math.max(1, bottomDepth - topDepth)) * 694}
+                y2={32 + ((targetDepth - topDepth) / Math.max(1, bottomDepth - topDepth)) * 694}
+                stroke={invalid ? '#9aa5b1' : correlation.color}
+                stroke-width="2"
+                stroke-dasharray={invalid ? '6 4' : null}
+                vector-effect="non-scaling-stroke"
+              />
+            {/if}
           {/each}
         </svg>
       {/if}
@@ -135,6 +141,7 @@
 
 <div class="comparison-legend">
   <span><i></i> 连线颜色取自起点地层颜色</span>
+  <span><i class="invalid-sample"></i> 灰色虚线为失效地层线（端点缺失或岩性不再对应）</span>
   <span>修改任一钻孔区间后，柱状图与连线深度会同步重算</span>
 </div>
 
@@ -155,6 +162,7 @@
   .correlation-lines { flex: 1 1 40px; min-width: 38px; height: 760px; margin-top: 47px; overflow: visible; opacity: .8; }
   .comparison-legend { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; color: #64748b; font-size: 10px; }
   .comparison-legend i { display: inline-block; width: 26px; height: 2px; background: #4f46e5; vertical-align: middle; margin-right: 5px; }
+  .comparison-legend i.invalid-sample { height: 0; background: none; border-top: 2px dashed #9aa5b1; }
   @media (max-width: 900px) {
     .selection-grid { grid-template-columns: 1fr 1fr; }
     .connect-button { grid-column: 1 / -1; }
