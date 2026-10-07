@@ -3,6 +3,8 @@
   import DepthLog from '$lib/components/DepthLog.svelte';
   import IntervalTable from '$lib/components/IntervalTable.svelte';
   import PhotoPanel from '$lib/components/PhotoPanel.svelte';
+  import ImportDialog from '$lib/components/ImportDialog.svelte';
+  import ConflictPanel from '$lib/components/ConflictPanel.svelte';
   import { logbook } from '$lib/stores/logbook.svelte';
   import { downloadJson, printLog } from '$lib/utils/exports';
 
@@ -12,6 +14,7 @@
   let panning = $state(false);
   let panStartY = $state(0);
   let panStartTop = $state(0);
+  let importOpen = $state(false);
 
   let activeHole = $derived(logbook.activeHole);
   let selectedInterval = $derived(logbook.selectedInterval);
@@ -106,6 +109,7 @@
         <button class="btn btn-sm variant-soft" onclick={() => logbook.redo()} disabled={!logbook.future.length}>重做</button>
         <button class="btn btn-sm variant-soft" onclick={() => logbook.splitSelected()}>拆分区间</button>
         <button class="btn btn-sm variant-soft" onclick={() => logbook.mergeSelectedWithNext()}>合并下一段</button>
+        <button class="btn btn-sm variant-soft" onclick={() => (importOpen = true)}>导入离线编录</button>
         <button class="btn btn-sm variant-soft" onclick={() => downloadJson(logbook.holes, logbook.activeHoleId)}>导出 JSON</button>
         <button class="btn btn-sm variant-filled-primary" onclick={printLog}>打印柱状图</button>
       </div>
@@ -117,6 +121,8 @@
         {#each logbook.errors as error}<span>{error}</span>{/each}
       </div>
     {/if}
+
+    <ConflictPanel />
 
     <div class="editor-grid">
       <section class="log-card">
@@ -189,6 +195,8 @@
         />
       {/if}
     </section>
+
+    <ImportDialog open={importOpen} onclose={() => (importOpen = false)} />
   </main>
 </div>
 

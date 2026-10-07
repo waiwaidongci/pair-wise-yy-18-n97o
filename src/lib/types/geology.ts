@@ -17,6 +17,25 @@ export interface Correlation {
   targetHoleId: string;
   targetIntervalId: string;
   color: string;
+  invalid?: boolean;
+}
+
+export interface PendingConflict {
+  id: string;
+  holeId: string;
+  from: number;
+  to: number;
+  existing: Interval;
+  imported: Interval;
+  status: 'pending' | 'existing' | 'imported';
+  createdAt: number;
+}
+
+export interface ImportPayload {
+  schema?: string;
+  exportedAt?: string;
+  activeHoleId?: string;
+  holes: DrillHole[];
 }
 
 export interface DrillHole {

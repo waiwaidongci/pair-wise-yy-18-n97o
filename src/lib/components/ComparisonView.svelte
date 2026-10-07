@@ -113,7 +113,7 @@
       </div>
       {#if index < holes.length - 1}
         <svg class="correlation-lines" viewBox="0 0 100 760" preserveAspectRatio="none" aria-hidden="true">
-          {#each hole.correlations.filter((item) => holes.some((candidate) => candidate.id === item.targetHoleId)) as correlation}
+          {#each hole.correlations.filter((item) => item.invalid || holes.some((candidate) => candidate.id === item.targetHoleId)) as correlation}
             {@const targetHole = holes.find((candidate) => candidate.id === correlation.targetHoleId)}
             {@const sourceDepth = intervalMidpoint(hole, correlation.intervalId)}
             {@const targetDepth = targetHole ? intervalMidpoint(targetHole, correlation.targetIntervalId) : sourceDepth}
@@ -122,10 +122,13 @@
               x2="100"
               y1={32 + ((sourceDepth - topDepth) / Math.max(1, bottomDepth - topDepth)) * 694}
               y2={32 + ((targetDepth - topDepth) / Math.max(1, bottomDepth - topDepth)) * 694}
-              stroke={correlation.color}
-              stroke-width="2"
+              stroke={correlation.invalid ? '#94a3b8' : correlation.color}
+              stroke-width={correlation.invalid ? 1.5 : 2}
+              stroke-dasharray={correlation.invalid ? '5 4' : 'none'}
               vector-effect="non-scaling-stroke"
-            />
+            >
+              <title>{correlation.invalid ? '失效连线：端点区间已不存在，可点击“清除失效连线”' : '地层连线'}</title>
+            </line>
           {/each}
         </svg>
       {/if}

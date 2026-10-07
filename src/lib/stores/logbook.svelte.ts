@@ -1,4 +1,4 @@
-import type { DrillHole, Interval } from '$lib/types/geology';
+import type { DrillHole, Interval, PendingConflict } from '$lib/types/geology';
 import {
   clamp,
   createId,
@@ -7,8 +7,16 @@ import {
   sortIntervals,
   validateHole,
 } from '$lib/utils/geology';
+import {
+  cleanImportedHole,
+  mergeHole,
+  parseImportPayload,
+  remapCorrelations,
+  DEPTH_TOLERANCE,
+} from '$lib/utils/importMerge';
 
 const STORAGE_KEY = 'core-column:holes';
+const CONFLICTS_KEY = 'core-column:conflicts';
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -22,6 +30,9 @@ class LogbookStore {
   history = $state<DrillHole[][]>([]);
   future = $state<DrillHole[][]>([]);
   message = $state('');
+  pendingConflicts = $state<PendingConflict[]>([]);
+  lastImportError = $state('');
+  lastImportRaw = $state('');
 
   constructor() {
     if (typeof localStorage !== 'undefined') {
@@ -33,6 +44,15 @@ class LogbookStore {
         }
       } catch {
         this.holes = createMockHoles();
+      }
+      try {
+        const conflictsRaw = localStorage.getItem(CONFLICTS_KEY);
+        if (conflictsRaw) {
+          const parsedConflicts = JSON.parse(conflictsRaw) as PendingConflict[];
+          if (Array.isArray(parsedConflicts)) this.pendingConflicts = parsedConflicts;
+        }
+      } catch {
+        this.pendingConflicts = [];
       }
     }
     this.selectedIntervalId = this.activeHole?.intervals[0]?.id ?? null;
@@ -53,6 +73,7 @@ class LogbookStore {
   private persist() {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.holes));
+      localStorage.setItem(CONFLICTS_KEY, JSON.stringify(this.pendingConflicts));
     }
   }
 
@@ -245,6 +266,130 @@ class LogbookStore {
     });
   }
 
+  get pendingConflictCount() {
+    return this.pendingConflicts.filter((item) => item.status === 'pending').length;
+  }
+
+  get invalidCorrelationCount() {
+    return this.holes.reduce(
+      (total, hole) => total + hole.correlations.filter((item) => item.invalid).length,
+      0,
+    );
+  }
+
+  /**
+   * 导入离线编录数据并合并进已有钻孔。
+   * 原子操作：解析 / 合并 / 校验任一环节失败都不改动原记录，
+   * 仅记录错误与原始 payload，界面可直接重试。
+   */
+  importOfflineData(raw: string):
+    | { ok: true; summary: { mergedCount: number; newCount: number; conflictCount: number; invalidCorrelationCount: number } }
+    | { ok: false; error: string } {
+    const parsed = parseImportPayload(raw);
+    if (!parsed.ok) {
+      this.lastImportError = parsed.error;
+      this.lastImportRaw = raw;
+      return { ok: false, error: parsed.error };
+    }
+    try {
+      const payload = parsed.payload;
+      const idMap = new Map<string, string>();
+      const incomingConflicts: PendingConflict[] = [];
+      const nextHoles: DrillHole[] = [];
+      let mergedCount = 0;
+      let newCount = 0;
+
+      for (const importedHole of payload.holes) {
+        const existing = this.holes.find((item) => item.id === importedHole.id);
+        if (existing) {
+          const result = mergeHole(existing, importedHole);
+          result.oldToNew.forEach((newId, oldId) => idMap.set(oldId, newId));
+          incomingConflicts.push(...result.conflicts);
+          nextHoles.push(result.hole);
+          mergedCount += 1;
+        } else {
+          nextHoles.push(cleanImportedHole(importedHole));
+          newCount += 1;
+        }
+      }
+
+      // 保留本次未导入的钻孔
+      for (const hole of this.holes) {
+        if (!nextHoles.some((item) => item.id === hole.id)) nextHoles.push(hole);
+      }
+
+      const { holes: remapped, invalidCount } = remapCorrelations(nextHoles, idMap);
+
+      for (const hole of remapped) {
+        const errors = validateHole(hole);
+        if (errors.length) {
+          throw new Error(`钻孔 ${hole.name} 合并后校验未通过：${errors.join('；')}`);
+        }
+      }
+
+      this.commit('已导入离线编录', () => {
+        this.holes = remapped;
+        this.pendingConflicts = [...this.pendingConflicts, ...incomingConflicts];
+        this.lastImportError = '';
+        this.lastImportRaw = '';
+      });
+
+      return {
+        ok: true,
+        summary: {
+          mergedCount,
+          newCount,
+          conflictCount: incomingConflicts.length,
+          invalidCorrelationCount: invalidCount,
+        },
+      };
+    } catch (err) {
+      this.lastImportError = err instanceof Error ? err.message : '导入失败';
+      this.lastImportRaw = raw;
+      return { ok: false, error: this.lastImportError };
+    }
+  }
+
+  retryImport() {
+    if (!this.lastImportRaw) {
+      return { ok: false as const, error: '没有可重试的导入，请先选择编录文件' };
+    }
+    return this.importOfflineData(this.lastImportRaw);
+  }
+
+  resolveConflict(conflictId: string, choice: 'existing' | 'imported') {
+    const conflict = this.pendingConflicts.find((item) => item.id === conflictId);
+    if (!conflict || conflict.status !== 'pending') return;
+    this.commit(choice === 'imported' ? '已采用导入版本' : '已保留现有版本', () => {
+      const hole = this.holes.find((item) => item.id === conflict.holeId);
+      if (hole) {
+        const source = choice === 'imported' ? conflict.imported : conflict.existing;
+        hole.intervals = hole.intervals.map((item) =>
+          Math.abs(item.from - conflict.from) <= DEPTH_TOLERANCE &&
+          Math.abs(item.to - conflict.to) <= DEPTH_TOLERANCE
+            ? { ...item, ...source, id: item.id, from: item.from, to: item.to }
+            : item,
+        );
+      }
+      this.pendingConflicts = this.pendingConflicts.map((item) =>
+        item.id === conflictId ? { ...item, status: choice } : item,
+      );
+    });
+  }
+
+  clearResolvedConflicts() {
+    this.pendingConflicts = this.pendingConflicts.filter((item) => item.status === 'pending');
+    this.persist();
+  }
+
+  clearInvalidCorrelations() {
+    this.commit('已清除失效连线', () => {
+      this.holes.forEach((hole) => {
+        hole.correlations = hole.correlations.filter((item) => !item.invalid);
+      });
+    });
+  }
+
   undo() {
     const previous = this.history.at(-1);
     if (!previous) return;
@@ -271,6 +416,9 @@ class LogbookStore {
     this.selectedIntervalId = this.holes[0].intervals[0].id;
     this.history = [];
     this.future = [];
+    this.pendingConflicts = [];
+    this.lastImportError = '';
+    this.lastImportRaw = '';
     this.persist();
   }
 }

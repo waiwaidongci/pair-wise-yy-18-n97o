@@ -26,6 +26,13 @@
       <button class="btn btn-sm variant-soft" onclick={() => logbook.undo()}>撤销</button>
       <button class="btn btn-sm variant-soft" onclick={() => logbook.redo()}>重做</button>
       <button class="btn btn-sm variant-soft-error" onclick={() => logbook.clearCorrelations()}>清除连线</button>
+      <button
+        class="btn btn-sm variant-soft-error"
+        disabled={logbook.invalidCorrelationCount === 0}
+        onclick={() => logbook.clearInvalidCorrelations()}
+      >
+        清除失效连线{logbook.invalidCorrelationCount > 0 ? `（${logbook.invalidCorrelationCount}）` : ''}
+      </button>
       <button class="btn btn-sm variant-filled-primary" onclick={() => window.print()}>打印对比图</button>
     </div>
   </div>
